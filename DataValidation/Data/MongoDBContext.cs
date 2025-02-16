@@ -9,7 +9,7 @@ namespace DataValidation.Data
         public MongoDbContext(IConfiguration configuration)
         {
             var client = new MongoClient(configuration.GetConnectionString("MongoDb"));
-            _database = client.GetDatabase("DatabaseName");
+            _database = client.GetDatabase("ValidationRulesDB");
 
             // Create unique index on RuleName
             var indexKeysDefinition = Builders<DocumentModel>.IndexKeys.Ascending(rule => rule.Payload.RuleName);

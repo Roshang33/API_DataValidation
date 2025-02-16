@@ -12,4 +12,6 @@ namespace DataValidation
         public BsonDocument RuleDescription { get; set; } = new BsonDocument();
         // Add other properties as needed
     }
+
+
 }
