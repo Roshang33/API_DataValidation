@@ -5,6 +5,9 @@ using DataValidation;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using System.Text.Json;
+using MongoDB.Bson.Serialization;
+using System.Data;
+using Microsoft.OpenApi.Validations;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -49,10 +52,10 @@ public class ValidationRulesController : ControllerBase
             // Create the document
             var document = new DocumentModel
             {
-                Payload = new ValidationRule
+                Payload = new DataValidation.ValidationRule
                 {
                     RuleName = ruleName,
-                    RuleDescription = ruleDescription
+                    RuleDescription = BsonSerializer.Deserialize<RuleDescription>(ruleDescription)
                 }
             };
             await _context.ValidationRules.InsertOneAsync(document);
@@ -65,17 +68,32 @@ public class ValidationRulesController : ControllerBase
     }
 
     [HttpPut("updatevalidationrules/{ruleName}")]
-    public async Task<IActionResult> UpdateValidationRules(string ruleName, [FromBody] ValidationRule updatedRule)
+    public async Task<IActionResult> UpdateValidationRules(string ruleName, [FromBody] JsonElement updatedRule)
     {
-        if (updatedRule == null)
+        // Extract and convert RuleDescription
+        BsonDocument ruleDescription;
+
+        if (updatedRule.TryGetProperty("RuleDescription", out var ruleDescriptionElement))
         {
-            return BadRequest("Updated validation rule is null.");
+            if (ruleDescriptionElement.ValueKind == JsonValueKind.Object)
+            {
+                // Convert to BsonDocument if it's a JSON object
+                ruleDescription = BsonDocument.Parse(ruleDescriptionElement.GetRawText());
+            }
+            else
+            {
+                // Handle non-object cases dynamically
+                ruleDescription = new BsonDocument("Value", ruleDescriptionElement.ToString());
+            }
+        }
+        else
+        {
+            throw new ArgumentException("RuleDescription is required.");
         }
 
         var filter = Builders<DocumentModel>.Filter.Eq(r => r.Payload.RuleName, ruleName);
         var update = Builders<DocumentModel>.Update
-            .Set(r => r.Payload.RuleDescription, updatedRule.RuleDescription)
-            .Set(r => r.Payload.RuleName, updatedRule.RuleName);
+            .Set(r => r.Payload.RuleDescription, BsonSerializer.Deserialize<RuleDescription>(ruleDescription));
         // Add other properties to update as needed
 
         var result = await _context.ValidationRules.UpdateOneAsync(filter, update);

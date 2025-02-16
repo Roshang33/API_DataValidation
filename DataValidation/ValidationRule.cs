@@ -9,8 +9,16 @@ namespace DataValidation
         public string RuleName { get; set; }
 
         [BsonElement("RuleDescription")]
-        public BsonDocument RuleDescription { get; set; } = new BsonDocument();
+        public RuleDescription RuleDescription { get; set; }
         // Add other properties as needed
+    }
+
+    public class RuleDescription
+    {
+        public string Description { get; set; }
+
+        [BsonElement("Details")]
+        public BsonDocument Details { get; set; }  // ✅ Stores JSON as BsonDocument
     }
 
 
