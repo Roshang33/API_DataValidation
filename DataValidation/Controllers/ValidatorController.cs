@@ -11,16 +11,19 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Routing.Template;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 [ApiController]
 [Route("api/[controller]")]
 public class ValidatorController : ControllerBase
  {
     private readonly MongoDbContext _context;
+    private readonly DslValidator _dslValidator;
 
-    public ValidatorController(MongoDbContext context)
+    public ValidatorController(MongoDbContext context, DslValidator dslValidator)
     {
         _context = context;
+        _dslValidator = dslValidator;
     }
 
     [HttpPost("validaterule/{ruleName}")]
@@ -39,12 +42,33 @@ public class ValidatorController : ControllerBase
 
             var result = Helper.MapValues(JsonConvert.DeserializeObject<JObject>(JObject.Parse(ruleJson).SelectToken("Payload.RuleDescription.Details")?.ToString()), JsonConvert.DeserializeObject<JObject>(PayloadToValidate.ToString()));
 
-            return Ok(ruleJson);
+            //foreach (var item in result)
+            //{
+            //    bool isValid = _dslValidator.ExecuteCustomValidation(item.Key, item.Value);
+            //}
+            //return Ok(new { message = "Validation passed!" });
+
+            var validationTasks = result
+                .Select(async kvp =>
+                {
+                    bool isValid = await _dslValidator.ExecuteCustomValidationAsync(kvp.Key, kvp.Value);
+
+                    return isValid ? null : $"Validation failed for {kvp.Key}.";
+                });
+
+            var results = await Task.WhenAll(validationTasks);
+            var errors = results.Where(error => error != null).ToList();
+            if (errors.Any())
+            {
+                return BadRequest(new { message = "Validation failed", errors });
+            }
+
+            return Ok(new { message = "Validation passed!" });
 
         }
-        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        catch (MongoWriteException ex)
         {
-            return Conflict("A validation rule with the same name already exists.");
+            return Conflict($"{ex}");
         }
     }
 
